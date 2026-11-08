@@ -1,0 +1,10 @@
+{
+ "name": "Lantern",
+ "identifier": "dev.mac2win.lantern",
+ "out": "../dist",
+ "macos": {
+  "infoPlist": {
+   "NSLocalNetworkUsageDescription": "邻信使用本地网络发现附近电脑，并直接传输消息和文件。"
+  }
+ }
+}

@@ -1,0 +1,15 @@
+# Local caches and build artifacts
+.cache/
+dist/
+.DS_Store
+*.log
+
+# Local credentials and runtime state
+.env
+.env.*
+!.env.example
+identity.pem
+trusted.json
+tailscale-peers.json
+settings.json
+*.part

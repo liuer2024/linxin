@@ -1,0 +1,11 @@
+{
+ "BackendState":"Running",
+ "Self":{"ID":"self-node","HostName":"My Mac","TailscaleIPs":["100.80.0.1","fd7a:115c:a1e0::1"],"Online":true,"OS":"macOS"},
+ "Peer":{
+  "nodekey:win":{"ID":"windows-node","HostName":"Office Windows","DNSName":"office-win.example.ts.net.","TailscaleIPs":["100.80.0.2"],"Online":true,"OS":"windows","Relay":"hkg"},
+  "nodekey:offline":{"ID":"offline-node","HostName":"Home PC","TailscaleIPs":["100.80.0.3"],"Online":false,"OS":"windows"},
+  "nodekey:v6":{"ID":"ipv6-node","HostName":"IPv6 Mac","TailscaleIPs":["fd7a:115c:a1e0::4"],"Online":true,"OS":"macOS"},
+  "nodekey:bad":{"ID":"not-tailnet","HostName":"Ignore subnet route","TailscaleIPs":["192.168.1.8","127.0.0.1"]},
+  "nodekey:self":{"ID":"self-node","HostName":"duplicate self","TailscaleIPs":["100.80.0.1"]}
+ }
+}
