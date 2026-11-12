@@ -72,6 +72,9 @@ func (a *app) discoverPage(c *ui.Context) {
 		if state.Firewall != "" && len(devices) == 0 {
 			ui.Text(c, state.Firewall).FontSize(12).TextColor(t.TextMuted)
 		}
+		if state.Scan != "" && len(devices) == 0 {
+			ui.Text(c, state.Scan).FontSize(12).TextColor(t.TextMuted)
+		}
 		if len(devices) == 0 {
 			ui.Column(c).Grow(1).Center().Gap(18).Children(func() {
 				ui.Box(c).Width(112).Height(112).Radius(56).Background(t.Surface).Center().Children(func() { ui.Icon(c, icons["discover"]).Width(46).Height(46).TextColor(t.Accent) })
@@ -131,12 +134,9 @@ func (a *app) deviceTile(c *ui.Context, p lan.Peer) {
 			a.contactDevice(p, true, nil)
 		}
 		ui.Text(c, p.Name).Bold().MaxLines(1).Ellipsis("…").TextAlign(ui.Center).FillWidth()
-		os := p.OS
-		if os == "darwin" {
-			os = "macOS"
-		}
+		os := map[string]string{"darwin": "macOS", "windows": "Windows", "linux": "Linux", "": "电脑"}[p.OS]
 		if os == "" {
-			os = "电脑"
+			os = p.OS
 		}
 		ui.Text(c, os+" · 在线").FontSize(12).TextColor(t.TextMuted)
 		ui.Row(c).Gap(8).Justify(ui.Center).Children(func() {

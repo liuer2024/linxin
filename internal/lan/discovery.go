@@ -26,6 +26,7 @@ type DiscoveryState struct {
 	SendError  string
 	ProbeError string
 	Firewall   string
+	Scan       string
 	Addresses  []string
 	Updated    time.Time
 }
@@ -62,6 +63,7 @@ type discoveryLink struct {
 	sender   *net.UDPConn
 	iface    net.Interface
 	ip       net.IP
+	network  *net.IPNet
 }
 
 func (l *discoveryLink) Close() { l.listener.Close(); l.sender.Close() }
@@ -168,10 +170,12 @@ func (s *Service) discoveryLoop() {
 			}
 			addresses, _ := iface.Addrs()
 			var ip net.IP
+			var network *net.IPNet
 			for _, a := range addresses {
-				candidate, _, e := net.ParseCIDR(a.String())
+				candidate, ipnet, e := net.ParseCIDR(a.String())
 				if e == nil && candidate.To4() != nil && !candidate.IsLoopback() {
 					ip = candidate.To4()
+					network = ipnet
 					break
 				}
 			}
@@ -207,7 +211,7 @@ func (s *Service) discoveryLoop() {
 			_ = packet.SetMulticastLoopback(true)
 			_ = packet.SetMulticastTTL(1)
 			_ = listener.SetReadBuffer(64 << 10)
-			l := &discoveryLink{listener: listener, sender: sender, iface: iface, ip: ip}
+			l := &discoveryLink{listener: listener, sender: sender, iface: iface, ip: ip, network: network}
 			links[iface.Index] = l
 			go receive(listener)
 		}
@@ -252,10 +256,28 @@ func (s *Service) discoveryLoop() {
 			s.notify()
 		}
 	}
+	var scanning sync.Mutex
+	scan := func() {
+		if !scanning.TryLock() {
+			return
+		}
+		targets := make([]*net.IPNet, 0, len(links))
+		for _, l := range links {
+			if l.network != nil {
+				targets = append(targets, l.network)
+			}
+		}
+		go func() {
+			defer scanning.Unlock()
+			s.scanSubnets(targets)
+		}()
+	}
 	reconcile()
 	send(true)
+	scan()
 	s.notify()
 	lastReply := time.Time{}
+	ticks := 0
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -278,13 +300,140 @@ func (s *Service) discoveryLoop() {
 			s.mu.Unlock()
 			reconcile()
 			send(true)
+			scan()
 			s.notify()
 		case <-ticker.C:
+			ticks++
 			reconcile()
 			send(false)
+			// Multicast is dropped by some Wi-Fi access points and host firewalls.
+			// While nothing answers, probe the subnet's connection port directly.
+			if ticks%6 == 0 && !s.lanDeviceOnline() {
+				scan()
+			}
+			s.refreshStale()
 			s.notify()
 		}
 	}
+}
+
+// refreshStale re-probes LAN devices whose announcements stopped arriving,
+// such as those found by the subnet scan, so they stay online as long as
+// their connection port still answers with the same identity.
+func (s *Service) refreshStale() {
+	s.mu.RLock()
+	stale := []Peer{}
+	for _, p := range s.devices {
+		age := time.Since(p.Seen)
+		if p.Network == "lan" && age > 15*time.Second && age < 2*time.Minute {
+			stale = append(stale, p)
+		}
+	}
+	s.mu.RUnlock()
+	for _, p := range stale {
+		go func() {
+			u, err := url.Parse(p.Address)
+			if err != nil {
+				return
+			}
+			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+			defer cancel()
+			info, err := s.Probe(ctx, u.Host, p.ID)
+			if err != nil || info.ID != p.ID {
+				return
+			}
+			_ = s.registerDevice(info, u.Hostname())
+		}()
+	}
+}
+func (s *Service) lanDeviceOnline() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, p := range s.devices {
+		if p.Network == "lan" && p.Online() {
+			return true
+		}
+	}
+	return false
+}
+
+// scanSubnets looks for peers whose announcements never arrive by dialing
+// the connection port across each local IPv4 subnet (at most /22) and
+// probing public metadata from whoever answers. Found devices are registered
+// exactly like multicast announcements, so trust and sessions are unchanged.
+func (s *Service) scanSubnets(networks []*net.IPNet) {
+	ctx, cancel := context.WithTimeout(s.ctx, 40*time.Second)
+	defer cancel()
+	ports := []int{47832}
+	if s.port != 47832 && s.port > 0 {
+		ports = append(ports, s.port)
+	}
+	hosts := []string{}
+	for _, n := range networks {
+		ones, bits := n.Mask.Size()
+		if bits != 32 || ones < 22 {
+			continue
+		}
+		base := n.IP.To4()
+		if base == nil {
+			continue
+		}
+		count := 1 << (32 - ones)
+		start := uint32(base[0])<<24 | uint32(base[1])<<16 | uint32(base[2])<<8 | uint32(base[3])
+		for i := 1; i < count-1; i++ {
+			v := start + uint32(i)
+			ip := net.IPv4(byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
+			if !isLocalIP(ip) {
+				hosts = append(hosts, ip.String())
+			}
+		}
+	}
+	if len(hosts) == 0 {
+		return
+	}
+	found := 0
+	var mu sync.Mutex
+	sem := make(chan struct{}, 64)
+	var wg sync.WaitGroup
+	dialer := net.Dialer{Timeout: 600 * time.Millisecond}
+	for _, host := range hosts {
+		for _, port := range ports {
+			address := net.JoinHostPort(host, strconv.Itoa(port))
+			wg.Add(1)
+			sem <- struct{}{}
+			go func() {
+				defer wg.Done()
+				defer func() { <-sem }()
+				conn, err := dialer.DialContext(ctx, "tcp", address)
+				if err != nil {
+					return
+				}
+				conn.Close()
+				info, err := s.Probe(ctx, address, "")
+				if err != nil || info.ID == s.Identity.ID {
+					return
+				}
+				if s.registerDevice(info, host) == nil {
+					mu.Lock()
+					found++
+					mu.Unlock()
+				}
+			}()
+		}
+	}
+	wg.Wait()
+	s.mu.Lock()
+	s.discoveryState.Scan = fmt.Sprintf("已扫描网段 %s · 找到 %d 台", describeNetworks(networks), found)
+	s.mu.Unlock()
+	s.notify()
+}
+func describeNetworks(networks []*net.IPNet) string {
+	names := []string{}
+	for _, n := range networks {
+		names = append(names, n.String())
+	}
+	sort.Strings(names)
+	return strings.Join(names, "、")
 }
 func validAnnouncement(h hello) bool {
 	if h.Protocol != "" && h.Protocol != "lantern/1" {
@@ -314,6 +463,9 @@ func (s *Service) probeDiscovered(ctx context.Context, h hello, host string) err
 	if info.ID != h.ID {
 		return fmt.Errorf("discovered identity mismatch")
 	}
+	return s.registerDevice(info, host)
+}
+func (s *Service) registerDevice(info deviceInfo, host string) error {
 	p := Peer{ID: info.ID, Name: info.Name, OS: info.OS, Network: "lan", Address: "https://" + net.JoinHostPort(host, strconv.Itoa(info.Port)), Seen: time.Now()}
 	s.mu.Lock()
 	if _, exists := s.devices[p.ID]; !exists && len(s.devices) >= 256 {
