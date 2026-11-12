@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"mac2win/internal/lan"
 	"net/url"
+	"strings"
 )
 
 func (a *app) discoverPage(c *ui.Context) {
@@ -62,10 +63,15 @@ func (a *app) discoverPage(c *ui.Context) {
 		}
 		if state.Error != "" {
 			subtitle = state.Error
+		} else if state.SendError != "" {
+			subtitle = state.SendError
 		} else if state.Interfaces == 0 {
 			subtitle = "正在检查本地网络…"
 		}
 		ui.Text(c, subtitle).FontSize(12).TextColor(t.TextMuted)
+		if state.Firewall != "" && len(devices) == 0 {
+			ui.Text(c, state.Firewall).FontSize(12).TextColor(t.TextMuted)
+		}
 		if len(devices) == 0 {
 			ui.Column(c).Grow(1).Center().Gap(18).Children(func() {
 				ui.Box(c).Width(112).Height(112).Radius(56).Background(t.Surface).Center().Children(func() { ui.Icon(c, icons["discover"]).Width(46).Height(46).TextColor(t.Accent) })
@@ -85,8 +91,17 @@ func (a *app) discoverPage(c *ui.Context) {
 		ui.Divider(c)
 		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Icon(c, icons["laptop"]).Width(22).Height(22).TextColor(t.TextMuted)
-			ui.Text(c, "本机 · "+a.service.Name).FontSize(12).Grow(1)
-			ui.Text(c, "点击设备发送文件，或选择聊天").FontSize(12).TextColor(t.TextMuted)
+			local := "本机 · " + a.service.Name
+			if len(state.Addresses) > 0 {
+				local += " · " + strings.Join(state.Addresses, "  ")
+			} else {
+				local += fmt.Sprintf(" · 端口 %d", a.service.Port())
+			}
+			ui.Text(c, local).FontSize(12).Grow(1).MaxLines(1).Ellipsis("…")
+			if len(state.Addresses) > 0 && ui.Button(c, "复制地址").Clicked() {
+				mygo.Clipboard.WriteText(state.Addresses[0])
+			}
+			ui.Text(c, "对方可用「手动连接」填入本机地址").FontSize(12).TextColor(t.TextMuted)
 		})
 	})
 }

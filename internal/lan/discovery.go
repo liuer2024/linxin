@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,7 +23,10 @@ var discoveryGroup = net.IPv4(239, 255, 87, 15)
 type DiscoveryState struct {
 	Interfaces int
 	Error      string
+	SendError  string
 	ProbeError string
+	Firewall   string
+	Addresses  []string
 	Updated    time.Time
 }
 
@@ -95,6 +99,14 @@ func (s *Service) discoveryLoop() {
 		}()
 	}
 	links := map[int]*discoveryLink{}
+	go func() {
+		if hint := firewallHint(discoveryPort, s.port); hint != "" {
+			s.mu.Lock()
+			s.discoveryState.Firewall = hint
+			s.mu.Unlock()
+			s.notify()
+		}
+	}()
 	defer func() {
 		for _, l := range links {
 			l.Close()
@@ -211,17 +223,33 @@ func (s *Service) discoveryLoop() {
 		if len(links) > 0 {
 			lastError = ""
 		}
+		addresses := make([]string, 0, len(links))
+		for _, l := range links {
+			addresses = append(addresses, net.JoinHostPort(l.ip.String(), strconv.Itoa(s.port)))
+		}
+		sort.Strings(addresses)
 		s.mu.Lock()
 		s.discoveryState.Interfaces = len(links)
 		s.discoveryState.Error = lastError
+		s.discoveryState.Addresses = addresses
 		s.discoveryState.Updated = time.Now()
 		s.mu.Unlock()
 	}
 	send := func(query bool) {
 		loopback := s.listener.Addr().(*net.TCPAddr).IP.IsLoopback()
 		b, _ := json.Marshal(hello{Query: query, Protocol: "lantern/1", ID: s.Identity.ID, Name: s.Name, Port: s.port, OS: runtime.GOOS, Loopback: loopback})
+		sendError := ""
 		for _, l := range links {
-			_, _ = l.sender.WriteToUDP(b, &net.UDPAddr{IP: discoveryGroup, Port: discoveryPort})
+			if _, err := l.sender.WriteToUDP(b, &net.UDPAddr{IP: discoveryGroup, Port: discoveryPort}); err != nil {
+				sendError = describeSendError(err)
+			}
+		}
+		s.mu.Lock()
+		changed := s.discoveryState.SendError != sendError
+		s.discoveryState.SendError = sendError
+		s.mu.Unlock()
+		if changed {
+			s.notify()
 		}
 	}
 	reconcile()
@@ -316,4 +344,21 @@ func (s *Service) ConnectDevice(ctx context.Context, id string) error {
 		return err
 	}
 	return s.Connect(ctx, u.Host, id)
+}
+
+// describeSendError turns a multicast send failure into something a user can
+// act on. macOS blocks local-network traffic from apps that have not been
+// granted the "Local Network" permission, which surfaces as "no route to host".
+func describeSendError(err error) string {
+	msg := err.Error()
+	if strings.Contains(msg, "no route to host") {
+		if runtime.GOOS == "darwin" {
+			return "系统未允许邻信使用本地网络。请在「系统设置 → 隐私与安全性 → 本地网络」中打开邻信（从终端启动时打开对应终端），然后重新探测"
+		}
+		return "发现包无法发出：当前网络不可达，请检查网卡和路由器设置"
+	}
+	if strings.Contains(msg, "permission denied") {
+		return "系统拒绝了邻信发送发现包，请检查本地网络权限或安全软件"
+	}
+	return "发现包发送失败：" + msg
 }
