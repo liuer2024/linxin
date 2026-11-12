@@ -290,10 +290,14 @@ func (a *app) composer(c *ui.Context, p lan.Peer, s *conversationUI) {
 			if ui.Button(c, "发送文件").Disabled(a.busy).Clicked() {
 				a.chooseFiles(p.ID)
 			}
+			if ui.Button(c, "截图").Disabled(a.busy).Clicked() {
+				a.captureScreenshot(p.ID)
+			}
 			ui.Spacer(c)
-			ui.Text(c, "消息直接发送到对方电脑").FontSize(10).TextColor(t.TextMuted)
+			ui.Text(c, "消息直接发送到对方电脑 · 粘贴图片或文件即发送").FontSize(10).TextColor(t.TextMuted)
 		})
-		area := ui.TextArea(c.Key("draft-"+p.ID), &s.input).Label("给 " + p.Name + " 的消息").Placeholder("输入消息…").Height(74).FillWidth()
+		area := ui.TextArea(c.Key("draft-"+p.ID), &s.input).Label("给 " + p.Name + " 的消息").Placeholder("输入消息，或粘贴截图…").Height(74).FillWidth().
+			OnPaste(func(text string) bool { return text == "" && a.pasteIntoConversation(p.ID) })
 		opts := transfer.DropOptions{Formats: []transfer.Format{transfer.FileList}, Operations: transfer.Copy}
 		if drop, ok := ui.DropData(area, opts); ok && !a.busy {
 			paths, err := drop.Data.Files()

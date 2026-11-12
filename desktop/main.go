@@ -45,6 +45,7 @@ type app struct {
 	tailCancel, tailConnectCancel          context.CancelFunc
 	tailGeneration                         int
 	cancels                                map[string]context.CancelFunc
+	images                                 map[string]*imageEntry
 }
 
 func (a *app) session(id string) *conversationUI {
@@ -231,7 +232,7 @@ func main() {
 	tailCLI := flag.String("tailscale-cli", "", "Tailscale CLI executable (optional)")
 	flag.Parse()
 	saved, settingsErr := preferences.Load(*dir)
-	a := &app{page: 1, dataDir: *dir, settings: saved, tailPort: "47832", tailClient: tailscale.Client{Command: *tailCLI}, sessions: map[string]*conversationUI{}, opened: map[string]time.Time{}, cancels: map[string]context.CancelFunc{}}
+	a := &app{page: 1, dataDir: *dir, settings: saved, tailPort: "47832", tailClient: tailscale.Client{Command: *tailCLI}, sessions: map[string]*conversationUI{}, opened: map[string]time.Time{}, cancels: map[string]context.CancelFunc{}, images: map[string]*imageEntry{}}
 	mygo.App.WhenReady(func() {
 		title := "邻信"
 		if *name != "" {

@@ -46,6 +46,9 @@ func (a *app) transfersPage(c *ui.Context) {
 	})
 }
 func (a *app) fileContent(c *ui.Context, f lan.Transfer, compact bool) {
+	if compact && f.Path != "" && isImageName(f.Name) && (!f.Incoming || f.State == "已完成") {
+		a.imagePreview(c, f.Path)
+	}
 	ui.Text(c, f.Name).Bold().MaxLines(2).Ellipsis("…")
 	ui.Text(c, fmt.Sprintf("%s · %s", size(f.Size), f.State)).FontSize(12)
 	if f.State == "传输中" {
