@@ -37,6 +37,11 @@ func brandBitmap(style string) *ui.Bitmap {
 func (a *app) applyAppIcon() error {
 	data := iconData(a.settings.AppIcon)
 	if runtime.GOOS == "darwin" {
+		style := a.settings.AppIcon
+		if style != "flow" {
+			style = "minimal"
+		}
+		data, _ = brandAssets.ReadFile("assets/icon-dock-" + style + ".png")
 		if err := mygo.App.Dock.SetIcon(data); err != nil {
 			return fmt.Errorf("更新应用图标失败：%w", err)
 		}
