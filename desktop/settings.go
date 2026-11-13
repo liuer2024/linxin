@@ -24,6 +24,7 @@ func (a *app) settingsView(c *ui.Context) {
 		t := c.Theme()
 		ui.Column(c).Width(440).MaxWidth(440).Gap(16).Children(func() {
 			ui.Text(c, "设置").FontSize(22).Bold()
+			a.iconSettings(c)
 			ui.Text(c, "跨网络连接").Bold()
 			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -75,6 +76,9 @@ func (a *app) saveSettings() {
 				return
 			}
 			a.settings = next
+			if err := a.applyAppIcon(); err != nil {
+				a.status = err.Error()
+			}
 			a.settingsOpen = false
 			if !next.TailscaleEnabled {
 				a.source = 0

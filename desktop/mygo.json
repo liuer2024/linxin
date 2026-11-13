@@ -1,5 +1,6 @@
 {
- "name": "Lantern",
+ "name": "邻信",
+ "icon": "assets/icon-minimal.png",
  "identifier": "dev.mac2win.lantern",
  "out": "../dist",
  "macos": {

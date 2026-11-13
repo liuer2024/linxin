@@ -126,7 +126,11 @@ func (a *app) view(c *ui.Context) {
 func (a *app) navigation(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Width(76).Shrink(0).FillHeight().Padding(14, 8).Gap(16).Background(t.Surface).Children(func() {
-		ui.Text(c, "邻").FontSize(22).Bold().TextColor(t.Accent).Padding(12, 0).TextAlign(ui.Center).FillWidth()
+		ui.Box(c).FillWidth().Height(50).Center().Children(func() {
+			if b := brandBitmap(a.settings.AppIcon); b != nil {
+				ui.Image(c, b).Size(32, 32).Fit(ui.Contain)
+			}
+		})
 		unread := 0
 		if a.service != nil {
 			for _, s := range a.service.Store.Conversations() {
@@ -230,6 +234,7 @@ func main() {
 	listen := flag.String("listen", ":47832", "TLS listen address")
 	name := flag.String("name", "", "device display name")
 	tailCLI := flag.String("tailscale-cli", "", "Tailscale CLI executable (optional)")
+	capture := flag.String("capture-settings", "", "capture this native settings window to a PNG (local QA)")
 	flag.Parse()
 	saved, settingsErr := preferences.Load(*dir)
 	a := &app{page: 1, dataDir: *dir, settings: saved, tailPort: "47832", tailClient: tailscale.Client{Command: *tailCLI}, sessions: map[string]*conversationUI{}, opened: map[string]time.Time{}, cancels: map[string]context.CancelFunc{}, images: map[string]*imageEntry{}}
@@ -239,6 +244,9 @@ func main() {
 			title += " · " + *name
 		}
 		a.win = mygo.NewWindow(mygo.WindowOptions{Title: title, Width: 1180, Height: 780, Content: ui.View(a.view)})
+		if iconErr := a.applyAppIcon(); iconErr != nil {
+			a.status = iconErr.Error()
+		}
 		a.service, err = lan.Start(*dir, *name, *listen, func() { a.win.Update(func() {}) })
 		if err != nil {
 			a.status = "启动失败：" + err.Error()
@@ -254,6 +262,9 @@ func main() {
 		}
 		a.win.OnFocus(func() { a.win.Invalidate() })
 		a.win.Invalidate()
+		if *capture != "" {
+			a.captureSettings(*capture)
+		}
 	})
 	if err = mygo.App.Run(); err != nil {
 		log.Print(err)

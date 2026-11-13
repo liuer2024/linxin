@@ -9,11 +9,12 @@ import (
 )
 
 type Settings struct {
-	TailscaleEnabled bool `json:"tailscale_enabled"`
-	StartTailscale   bool `json:"start_tailscale_with_app"`
+	AppIcon          string `json:"app_icon"`
+	TailscaleEnabled bool   `json:"tailscale_enabled"`
+	StartTailscale   bool   `json:"start_tailscale_with_app"`
 }
 
-func Default() Settings { return Settings{TailscaleEnabled: true} }
+func Default() Settings { return Settings{TailscaleEnabled: true, AppIcon: "minimal"} }
 func Load(dir string) (Settings, error) {
 	settings := Default()
 	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
@@ -26,6 +27,9 @@ func Load(dir string) (Settings, error) {
 	// Decode over defaults so newly added fields retain their default value.
 	if err = json.Unmarshal(b, &settings); err != nil {
 		return Default(), err
+	}
+	if settings.AppIcon != "flow" {
+		settings.AppIcon = "minimal"
 	}
 	return settings, nil
 }

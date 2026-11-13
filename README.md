@@ -117,3 +117,17 @@ go test ./internal/lan -run '^$' -bench BenchmarkTransfer32MiB -benchtime=3x
 - [Tailscale 接入说明](docs/TAILSCALE.md)
 
 欢迎通过 [Issues](https://github.com/liuer2024/linxin/issues) 反馈使用场景、问题与建议。报告连接问题时，请隐藏私钥、设备身份文件及个人网络信息。
+
+### 应用图标
+
+在「设置 → 应用图标」选择「极简平面」或「灵动线条」，点击保存后更新导航栏及运行中的应用图标，重启后保留。默认使用极简平面；Finder / 发行文件的静态图标使用默认款。Windows 的窗口图标已接入，真机效果仍待验收。
+
+本机原生设置截图：
+
+![极简平面图标设置](docs/screenshots/icon-settings.png)
+
+![灵动线条图标设置](docs/screenshots/icon-settings-flow.png)
+
+截图通过真实 Mac 原生实例的 `CapturePage` 生成，不包含桌面其他窗口；截图中的发现状态为当时真实状态，不代表跨设备发现验证通过。
+
+开发验收可在 `desktop` 目录使用独立数据目录运行 `go run . -data ../.cache/icon-qa -listen 127.0.0.1:47981 -capture-settings ../.cache/icon-settings.png`。该选项截图两款图标并执行保存切换，结束后恢复原设置；请勿对日常数据目录运行。
