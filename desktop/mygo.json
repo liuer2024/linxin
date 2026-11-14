@@ -1,7 +1,7 @@
 {
  "name": "邻信",
  "slug": "linxin",
- "version": "0.1.0",
+ "version": "0.1.1",
  "icon": "assets/icon-dock-minimal.png",
  "identifier": "dev.mac2win.lantern",
  "out": "../dist",
