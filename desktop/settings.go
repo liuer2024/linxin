@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
 	"mac2win/internal/preferences"
 	"mac2win/internal/tailscale"
@@ -16,6 +17,7 @@ func (a *app) openSettings() {
 		return
 	}
 	a.settingsDraft = a.settings
+	a.autoUpdateDraft = updater.AutomaticChecks()
 	a.settingsError = ""
 	a.settingsOpen = true
 }
@@ -25,6 +27,7 @@ func (a *app) settingsView(c *ui.Context) {
 		ui.Column(c).Width(440).MaxWidth(440).Gap(16).Children(func() {
 			ui.Text(c, "设置").FontSize(22).Bold()
 			a.iconSettings(c)
+			a.updateSettings(c)
 			ui.Text(c, "跨网络连接").Bold()
 			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -76,6 +79,9 @@ func (a *app) saveSettings() {
 				return
 			}
 			a.settings = next
+			if a.autoUpdateDraft != updater.AutomaticChecks() {
+				updater.SetAutomaticChecks(a.autoUpdateDraft)
+			}
 			if err := a.applyAppIcon(); err != nil {
 				a.status = err.Error()
 			}

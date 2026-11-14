@@ -1,8 +1,15 @@
 {
  "name": "邻信",
+ "slug": "linxin",
+ "version": "0.1.0",
  "icon": "assets/icon-dock-minimal.png",
  "identifier": "dev.mac2win.lantern",
  "out": "../dist",
+ "updates": {
+  "publicKey": "AHwXkYyMl5sMUyN1IOtodQMbjJfOXHT0XQiwxBNgANw=",
+  "github": "liuer2024/linxin",
+  "changelog": "../CHANGELOG.md"
+ },
  "macos": {
   "infoPlist": {
    "NSLocalNetworkUsageDescription": "邻信使用本地网络发现附近电脑，并直接传输消息和文件。"

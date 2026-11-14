@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
 	"log"
 	"mac2win/internal/core"
@@ -37,6 +38,7 @@ type app struct {
 	settings, settingsDraft                preferences.Settings
 	settingsOpen, settingsSaving           bool
 	settingsError                          string
+	autoUpdateDraft                        bool
 	tailClient                             tailscale.Client
 	tailState                              tailscale.Status
 	tailLoading                            bool
@@ -236,6 +238,7 @@ func main() {
 	tailCLI := flag.String("tailscale-cli", "", "Tailscale CLI executable (optional)")
 	capture := flag.String("capture-settings", "", "capture this native settings window to a PNG (local QA)")
 	flag.Parse()
+	useUpdater()
 	saved, settingsErr := preferences.Load(*dir)
 	a := &app{page: 1, dataDir: *dir, settings: saved, tailPort: "47832", tailClient: tailscale.Client{Command: *tailCLI}, sessions: map[string]*conversationUI{}, opened: map[string]time.Time{}, cancels: map[string]context.CancelFunc{}, images: map[string]*imageEntry{}}
 	mygo.App.WhenReady(func() {
@@ -261,6 +264,7 @@ func main() {
 			a.launchTailscale()
 		}
 		a.win.OnFocus(func() { a.win.Invalidate() })
+		updater.OnChange(func() { a.win.Invalidate() })
 		a.win.Invalidate()
 		if *capture != "" {
 			a.captureSettings(*capture)

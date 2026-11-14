@@ -17,3 +17,5 @@ require (
 )
 
 replace mac2win => ..
+
+tool github.com/egoist/mygo/cmd/mygo
